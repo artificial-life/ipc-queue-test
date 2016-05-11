@@ -3,6 +3,7 @@
 let zmq = require('zmq');
 let _ = require('lodash');
 
+
 let taskmap = {};
 let cursors = {};
 
@@ -17,6 +18,7 @@ class Broker {
 		let identity = args[0].toString('utf8');
 		let payload = JSON.parse(args[2].toString('utf8'));
 		console.log('Broker payload', payload);
+
 		let event_name = 'on' + payload.type;
 		let eventHandler = this[event_name];
 		//@NOTE: do checks here
@@ -26,11 +28,7 @@ class Broker {
 		_.forEach(payload.body, task => this.listenTask(identity, task));
 	}
 	onresponseTask(identity, payload) {
-		let result = {
-			params: payload.body,
-			taskname: 'responseTask'
-		};
-		this.broker.send([payload.recipient, '', JSON.stringify(result)]);
+		this.broker.send([payload._recipient, '', JSON.stringify(payload)]);
 	}
 	onlistenTask(identity, payload) {
 		let task = payload.body;
@@ -43,12 +41,10 @@ class Broker {
 	}
 	onaddTask(identity, payload) {
 		let body = payload.body;
-		console.log(body);
 		let taskname = body.taskname;
-		let params = body.params;
 		let free_worker = this.getWorkerForTask(taskname)
 
-		this.sendTask(free_worker, identity, body);
+		this.sendTask(free_worker, identity, payload);
 	}
 	getWorkerForTask(taskname) {
 		let cursor = cursors[taskname] ? (cursors[taskname] + 1) % cursors[taskname].length : 0;

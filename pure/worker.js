@@ -2,6 +2,7 @@
 
 let _ = require('lodash');
 let zmq = require('zmq');
+let RequestPool = require('async-requests').RequestPool;
 
 class Worker {
 	constructor(uri) {
@@ -9,47 +10,57 @@ class Worker {
 		this.worker.identity = 'zmq-worker-' + process.pid;
 		this.worker.connect(uri);
 		this.worker.on('message', (...args) => this.handleMessage(args));
-		this.callbacks = {
-			'responseTask': (d) => this.handleResponse(d)
-		};
+		this.pool = new RequestPool('cycle', 100000);
+
+		this.callbacks = {};
 	}
-	handleResponse(d) {
-		console.log('Got responseTask!', d);
+	handleResponse(data) {
+		this.pool.handleRequest(data);
 	}
-	makeResponse(recipient, data) {
+	makeResponse(recipient, request_id, data) {
 		this.send({
 			type: 'responseTask',
 			body: data,
-			_recipient: recipient
+			_recipient: recipient,
+			request_id: request_id
 		});
 	}
 	handleMessage(args) {
 		let payload = JSON.parse(args[1]);
-		console.log(process.pid, 'worker payload', payload);
 		let {
-			taskname: taskname,
-			params: params,
+			body: {
+				taskname: taskname,
+				params: params,
+			},
+			type: type,
+			request_id: request_id,
 			_sender: sender
 		} = payload;
 
+		if (type == 'responseTask') {
+			return this.handleResponse(payload);
+		}
+
 		let cb = this.callbacks[taskname];
 		let result = cb(params);
-
-		taskname !== 'responseTask' && Promise.resolve(result).then((d) => this.makeResponse(sender, d));
+		Promise.resolve(result).then((d) => this.makeResponse(sender, request_id, d));
 	}
 	send(message) {
 		this.worker.send(['', JSON.stringify(message)])
 	}
 	addTask(taskname, params) {
+		let request = this.pool.createRequest();
+
 		this.send({
 			type: 'addTask',
 			body: {
 				params,
 				taskname
-			}
+			},
+			request_id: request.id
 		});
 
-		return Promise.resolve();
+		return request.promise;
 	}
 	listenTask(taskname, callback) {
 		this.send({
@@ -61,14 +72,3 @@ class Worker {
 }
 
 module.exports = Worker;
-//
-// let worker = new Worker('tcp://localhost:5671');
-//
-// worker.listenTask('task1', (d) => {
-// 	return 'gotcha!';
-// });
-// worker.listenTask('task2');
-//
-// worker.addTask('task1', {
-// 	p: 1
-// });
