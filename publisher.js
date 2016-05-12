@@ -1,17 +1,22 @@
 // Beware if pub is started before a subcriber listening, it just goes into /dev/null space
 'use strict'
-var arg = process.argv[2];
-console.log(arg);
 var zmq = require('zmq');
-var sock = zmq.socket('pub');
 
-// Instead of binding our pub socket, we connect to the PUB -> XSUB
-sock.connect('tcp://127.0.0.1:5556');
-let event = {
-	name: 'wololo',
-	data: {
-		p: 'payload'
-	}
-};
-console.log('sending', JSON.stringify(event));
-sock.send(`${arg} ${JSON.stringify(event)}`);
+
+
+class ZMQPublisher {
+  constructor(uri) {
+    this.sock = zmq.socket('pub');
+    this.sock.connect(uri);
+  }
+  emit(event_name, data) {
+    this.sock.send(`${event_name} ${JSON.stringify(data)}`);
+  }
+}
+
+module.exports = ZMQPublisher;
+
+let arg = process.argv[2];
+let pub = new ZMQPublisher('tcp://127.0.0.1:5556');
+console.log(arg);
+pub.emit(arg, 'weeeee')

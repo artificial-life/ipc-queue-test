@@ -1,18 +1,35 @@
-var arg = process.argv[2];
-console.log(arg);
+'use strict'
+
 var zmq = require('zmq');
-var sock = zmq.socket('sub');
 
-// We subscribe to MYCHANNEL only
-sock.subscribe(arg);
+class ZMQSubscriber {
+  constructor(uri) {
+    this.sock = zmq.socket('sub');
+    this.sock.connect(uri);
+    this.sock.on('message', (d) => this.handleEvent(d));
+  }
+  handleEvent(d) {
+    let data = d.toString('utf8');
+    let pos = data.indexOf(' ');
+    if (-1 == pos) throw new Error('wrong event format');
+
+    let event_name = data.slice(0, pos);
+    let event_data = data.slice(pos + 1);
+
+    this.callback && this.callback(event_name, event_data);
+  }
+  on(event_name, cb) {
+    this.callback = cb;
+    this.sock.subscribe(event_name);
+  }
+}
+
+module.exports = ZMQSubscriber;
 
 
-// We connect our sub -> XPUB channel
-sock.connect('tcp://127.0.0.1:5555');
+let arg = process.argv[2];
+let pub = new ZMQSubscriber('tcp://127.0.0.1:5555');
 
-// When a message comes,
-sock.on('message', function (data) {
-	// data is a SlowBuffer
-	// data contains : 'MYCHANNEL' + aspace + 'here is the info'
-	console.log(data.toString());
-});
+pub.on(arg, (name, data) => {
+  console.log(name, data);
+})
