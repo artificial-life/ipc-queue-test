@@ -16,15 +16,19 @@ queue.listenTask('other', (d) => {
 
 queue.addTask('task1', {
 	p: 1
-}).then((d) => console.log(process.pid, d));
+}).then((d) => console.log(process.pid, 'result of external task', d));
 
 queue.addTask('other', {
 	p: 1
-}).then((d) => console.log(process.pid, d));
+}).then((d) => console.log(process.pid, 'result of internal task', d));
 
 queue.on('test-event', (d) => {
 	console.log(process.pid, 'rec event internal', d);
 });
+queue.on('test-event', (d) => {
+	console.log(process.pid, 'rec event internal number dva', d);
+});
+
 
 setTimeout(() => {
 	console.log(process.pid, 'emiting event');
